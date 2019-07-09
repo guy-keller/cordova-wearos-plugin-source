@@ -12,7 +12,7 @@ public class WearOsListenerService extends WearableListenerService {
     private static final String TAG = WearOsListenerService.class.getSimpleName();
     private static final String MSG_PATH = "/cordova/plugin/wearos";
 
-    private WearOsMessageListener messageListener;
+    private static WearOsMessageListener messageListener;
 
     public WearOsListenerService(){
         super();
@@ -22,7 +22,7 @@ public class WearOsListenerService extends WearableListenerService {
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         Log.i(TAG, "onMessageReceived");
-        if (MSG_PATH.equals(messageEvent.getPath())) {
+        if (MSG_PATH.equals(messageEvent.getPath()) && messageListener != null) {
             String msg = new String(messageEvent.getData(), StandardCharsets.UTF_8);
             messageListener.messageReceived(msg);
         } else {

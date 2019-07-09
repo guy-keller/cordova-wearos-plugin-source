@@ -6,7 +6,7 @@ import android.util.Log;
 public class WearOsBinder extends Binder {
 
     private static final String TAG = WearOsBinder.class.getSimpleName();
-    private WearOsListenerService service;
+    private static WearOsListenerService service;
 
     public WearOsBinder(WearOsListenerService service) {
         Log.i(TAG, "constructor");

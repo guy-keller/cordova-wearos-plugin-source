@@ -12,8 +12,8 @@ import android.util.Log;
 public class WearOsServiceConnection implements ServiceConnection {
 
     private static final String TAG = WearOsServiceConnection.class.getSimpleName();
-    private boolean serviceBound;
-    private IBinder service;
+    private static boolean serviceBound;
+    private static IBinder service;
 
     public WearOsServiceConnection() {
         super();
