@@ -82,10 +82,10 @@ public class CordovaWearOsPlugin extends CordovaPlugin {
 
     protected void registerMessageListener(CallbackContext callbackContext) {
         Log.i(TAG,"registerMessageListener :: listener: "+callbackContext);
-        this.callbackContext = callbackContext;
         if (this.serviceConnection != null && this.callbackContext == null) {
             WearOsMessageListener listener = createWearOsMessageListener();
             this.serviceConnection.getService().registerMessageListener(listener);
+            this.callbackContext = callbackContext;
         }
         callbackContext.success();
     }
