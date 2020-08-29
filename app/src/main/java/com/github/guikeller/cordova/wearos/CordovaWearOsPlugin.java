@@ -1,9 +1,15 @@
 package com.github.guikeller.cordova.wearos;
 
 import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
+
+import com.google.android.gms.wearable.DataClient;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.Wearable;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
@@ -13,14 +19,16 @@ import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import java.nio.charset.StandardCharsets;
+
 public class CordovaWearOsPlugin extends CordovaPlugin {
 
     private static final String TAG = CordovaWearOsPlugin.class.getSimpleName();
+    private static final String MSG_PATH = "/cordova/plugin/wearos";
 
-    private WearOsServiceConnection serviceConnection;
-    private CordovaInterface cordovaInterface;
-    private CallbackContext callbackContext;
-    private Intent intent;
+    private static WearOsMessageListener listener;
+    private static CordovaInterface cordovaInterface;
+    private static CallbackContext callbackContext;
 
     public CordovaWearOsPlugin(){
         super();
@@ -31,7 +39,7 @@ public class CordovaWearOsPlugin extends CordovaPlugin {
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
         Log.i(TAG, "initialize");
         super.initialize(cordova, webView);
-        this.cordovaInterface = cordova;
+        cordovaInterface = cordova;
     }
 
     @Override
@@ -59,42 +67,38 @@ public class CordovaWearOsPlugin extends CordovaPlugin {
 
     protected void init(CallbackContext callbackContext){
         Log.i(TAG,"init");
-        if (this.intent == null){
-            Activity context = this.cordovaInterface.getActivity();
-            this.intent = new Intent(context, WearOsListenerService.class);
-            this.intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            // Start service then bind; so onCreate is invoked on the 'Service' class
-            context.startService(this.intent);
-            this.serviceConnection = new WearOsServiceConnection();
-            context.bindService(this.intent, this.serviceConnection, Context.BIND_AUTO_CREATE);
-        }
         callbackContext.success();
     }
 
-    protected void shutdown(CallbackContext callbackContext) {
+    protected void shutdown(CallbackContext callbackContextParam) {
         Log.i(TAG,"shutdown");
-        if (this.intent != null) {
-            Activity context = this.cordovaInterface.getActivity();
-            context.stopService(this.intent);
-        }
-        callbackContext.success();
+        listener = null;
+        callbackContext = null;
+        callbackContextParam.success();
     }
 
-    protected void registerMessageListener(CallbackContext callbackContext) {
-        Log.i(TAG,"registerMessageListener :: listener: "+callbackContext);
-        if (this.serviceConnection != null && this.callbackContext == null) {
-            WearOsMessageListener listener = createWearOsMessageListener();
-            this.serviceConnection.getService().registerMessageListener(listener);
-            this.callbackContext = callbackContext;
-        }
-        callbackContext.success();
+    protected void registerMessageListener(CallbackContext callbackContextParam) {
+        Log.i(TAG,"registerMessageListener :: listener: "+callbackContextParam);
+        // Keeping a reference of the 'callbackContextParam'
+        callbackContext = callbackContextParam;
+        // Creating the listener, the listener is fired
+        // when we receive a message from the WearOS app
+        listener = createWearOsMessageListener();
+        // Registering to receive messages from the wear
+        Activity context = cordovaInterface.getActivity();
+        registerWearableMessageListener(context);
+        // Returning 'OK' but keeping the callback - so we can use whenever
+        // we receive another message from the Wearable / Companion app
+        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+        pluginResult.setKeepCallback(true);
+        callbackContext.sendPluginResult(pluginResult);
     }
 
     protected void sendMessage(JSONArray args, CallbackContext callbackContext){
         try {
             Log.i(TAG,"sendMessage :: args: "+args);
-            if (this.serviceConnection != null && args != null) {
-                Activity context = this.cordovaInterface.getActivity();
+            if (args != null) {
+                Activity context = cordovaInterface.getActivity();
                 WearOsMessageSender sender = new WearOsMessageSender(context);
                 String msg = args.getString(0);
                 sender.sendMessage(msg);
@@ -105,17 +109,37 @@ public class CordovaWearOsPlugin extends CordovaPlugin {
         }
     }
 
-    private WearOsMessageListener createWearOsMessageListener(){
+    @SuppressWarnings("all")
+    protected WearOsMessageListener createWearOsMessageListener(){
         Log.i(TAG,"createWearOsMessageListener");
         WearOsMessageListener listener = new WearOsMessageListener() {
             @Override
             public void messageReceived(String msg) {
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, msg);
                 pluginResult.setKeepCallback(true);
-                CordovaWearOsPlugin.this.callbackContext.sendPluginResult(pluginResult);
+                // This is the callback that we kept on the 'registerMessageListener'
+                callbackContext.sendPluginResult(pluginResult);
             }
         };
         return listener;
+    }
+
+    protected void registerWearableMessageListener(Activity context) {
+        Log.i(TAG, "registerMessageListener");
+        Wearable.getDataClient(context).addListener(new DataClient.OnDataChangedListener() {
+            @Override
+            public void onDataChanged(@NonNull DataEventBuffer dataEventBuffer) {
+                for(DataEvent dataEvent : dataEventBuffer) {
+                    DataItem dataItem = dataEvent.getDataItem();
+                    if(MSG_PATH.equals(dataItem.getUri().getPath())) {
+                        String msg = new String(dataItem.getData(), StandardCharsets.UTF_8);
+                        Log.d(TAG, "Message received: " + msg);
+                        // This is the listener that created on the 'registerMessageListener'
+                        listener.messageReceived(msg);
+                    }
+                }
+            }
+        });
     }
 
 }

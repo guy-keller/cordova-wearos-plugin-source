@@ -19,17 +19,17 @@ public class WearOsMessageSender {
 
     private Context context;
 
-    public WearOsMessageSender(Context context){
+    public WearOsMessageSender(Context contextParam){
         super();
         LOG.i(TAG, "constructor");
-        this.context = context;
+        context = contextParam;
     }
 
     public void sendMessage(String msg) throws Exception {
-        Task<List<Node>> listTask = Wearable.getNodeClient(this.context).getConnectedNodes();
+        Task<List<Node>> listTask = Wearable.getNodeClient(context).getConnectedNodes();
         List<Node> nodes = Tasks.await(listTask);
         for(Node node : nodes){
-            MessageClient client = Wearable.getMessageClient(this.context);
+            MessageClient client = Wearable.getMessageClient(context);
             client.sendMessage(node.getId(), MSG_PATH, msg.getBytes());
         }
     }
